@@ -268,7 +268,7 @@ To train your model using mixed or TF32 precision with Tensor Cores or FP32, per
 1. Clone the repository.
     ```
     git clone https://github.com/NVIDIA/DeepLearningExamples
-    cd DeepLearningExamples/PyTorch/DrugDiscovery/SE3Transformer
+    cd DeepLearningExamples/DGLPyTorch/DrugDiscovery/SE3Transformer
     ```
    
 2.  Build the `se3-transformer` PyTorch NGC container.
@@ -452,11 +452,11 @@ The following section shows how to run benchmarks measuring the model performanc
 
 #### Training performance benchmark
 
-To benchmark the training performance on a specific batch size, run `bash scripts/benchmarck_train.sh {BATCH_SIZE}` for single GPU, and `bash scripts/benchmarck_train_multi_gpu.sh {BATCH_SIZE}` for multi-GPU.
+To benchmark the training performance on a specific batch size, run `bash scripts/benchmark_train.sh {BATCH_SIZE}` for single GPU, and `bash scripts/benchmark_train_multi_gpu.sh {BATCH_SIZE}` for multi-GPU.
 
 #### Inference performance benchmark
 
-To benchmark the inference performance on a specific batch size, run `bash scripts/benchmarck_inference.sh {BATCH_SIZE}`.
+To benchmark the inference performance on a specific batch size, run `bash scripts/benchmark_inference.sh {BATCH_SIZE}`.
 
 ### Results
 
