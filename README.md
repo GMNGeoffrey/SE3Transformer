@@ -3,7 +3,8 @@
 This repository provides a script and recipe to train the SE(3)-Transformer
 model to achieve state-of-the-art accuracy. It is a fork of
 https://github.com/NVIDIA/DeepLearningExamples/tree/master/DGLPyTorch/DrugDiscovery/SE3Transformer
-extracted with `git-filter-repo`.
+extracted with `git-filter-repo` with additions to support running on AMD GPUs
+with ROCm and with newer PyTorch versions.
 
 ## Table Of Contents
 - [Model overview](#model-overview)
