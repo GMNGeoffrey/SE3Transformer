@@ -129,7 +129,9 @@ if __name__ == '__main__':
     else:
         world_size = dist.get_world_size() if dist.is_initialized() else 1
         callbacks = [PerformanceCallback(
-            logger, args.batch_size * world_size,
+            logger,
+            batch_size=args.batch_size * world_size,
+            world_size=world_size,
             warmup_epochs=1 if args.epochs > 1 else 0,
             mode='inference'
         )]

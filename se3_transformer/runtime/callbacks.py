@@ -123,8 +123,9 @@ class QM9LRSchedulerCallback(LRSchedulerCallback):
 
 
 class PerformanceCallback(BaseCallback):
-    def __init__(self, logger, batch_size: int, warmup_epochs: int = 1, mode: str = 'train'):
+    def __init__(self, logger, *, batch_size: int, world_size: int = 1, warmup_epochs: int = 1, mode: str = 'train'):
         self.batch_size = batch_size
+        self.world_size = world_size
         self.warmup_epochs = warmup_epochs
         self.epoch = 0
         self.timestamps = []
@@ -157,12 +158,16 @@ class PerformanceCallback(BaseCallback):
         throughput = self.batch_size / deltas.mean()
         stats = {
             f"mode": self.mode,
-            f"batchsize": self.batch_size,
-            f"throughput_{self.mode}": throughput,
-            f"latency_{self.mode}_mean": deltas.mean(),
-            f"total_time_{self.mode}": timestamps[-1] - timestamps[0],
+            f"batch_size": self.batch_size,
+            f"world_size": self.world_size,
+            f"batch_size_per_gpu": self.batch_size // self.world_size,
+            f"epochs": self.epoch,
+            f"warmup_epochs": self.warmup_epochs,
+            f"throughput": throughput,
+            f"latency_mean": deltas.mean(),
+            f"total_time": timestamps[-1] - timestamps[0],
         }
         for level in [90, 95, 99]:
-            stats.update({f"latency_{self.mode}_{level}": np.percentile(deltas, level)})
+            stats.update({f"latency_{level}": np.percentile(deltas, level)})
 
         return stats
