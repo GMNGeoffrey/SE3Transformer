@@ -217,6 +217,8 @@ if __name__ == '__main__':
         tensor_cores=using_tensor_cores(args.amp),  # use Tensor Cores more effectively
         **vars(args)
     )
+    if args.compile:
+        model.compile()
     loss_fn = nn.L1Loss()
 
     if args.benchmark:
