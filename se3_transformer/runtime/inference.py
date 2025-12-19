@@ -43,7 +43,7 @@ def evaluate(model: nn.Module,
              args):
     model.eval()
     for i, batch in tqdm(enumerate(dataloader), total=len(dataloader), unit='batch', desc=f'Evaluation',
-                         leave=False, disable=(args.silent or get_local_rank() != 0)):
+                         disable=(args.silent or get_local_rank() != 0)):
         *input, target = to_cuda(batch)
 
         for callback in callbacks:
@@ -68,13 +68,13 @@ if __name__ == '__main__':
     is_distributed = init_distributed()
     local_rank = get_local_rank()
     args = PARSER.parse_args()
-    print("Called with arguments:", vars(args))
 
     logging.getLogger().setLevel(logging.CRITICAL if local_rank != 0 or args.silent else logging.INFO)
 
     logging.info('====== SE(3)-Transformer ======')
     logging.info('|  Inference on the test set  |')
     logging.info('===============================')
+    logging.info("Called with arguments: %s", vars(args))
 
     if not args.benchmark and args.load_ckpt_path is None:
         logging.error('No load_ckpt_path provided, you need to provide a saved model to evaluate')
