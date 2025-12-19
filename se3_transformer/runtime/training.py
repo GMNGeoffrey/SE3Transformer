@@ -191,13 +191,13 @@ if __name__ == '__main__':
     is_distributed = init_distributed()
     local_rank = get_local_rank()
     args = PARSER.parse_args()
-    print("Called with arguments:", vars(args))
 
     logging.getLogger().setLevel(logging.CRITICAL if local_rank != 0 or args.silent else logging.INFO)
 
     logging.info('====== SE(3)-Transformer ======')
     logging.info('|      Training procedure     |')
     logging.info('===============================')
+    logging.info("Called with arguments: %s", vars(args))
 
     if args.seed is not None:
         logging.info(f'Using seed {args.seed}')
