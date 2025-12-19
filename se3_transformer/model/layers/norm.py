@@ -32,11 +32,9 @@ from se3_transformer.model.profiling import maybe_nvtx_range
 from se3_transformer.model.fiber import Fiber
 
 
-@torch.jit.script
 def clamped_norm(x, clamp: float):
     return x.norm(p=2, dim=-1, keepdim=True).clamp(min=clamp)
 
-@torch.jit.script
 def rescale(x, norm, new_norm):
     return x / norm * new_norm
 
