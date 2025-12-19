@@ -27,9 +27,62 @@ import torch
 import torch.nn as nn
 from dgl.nn.pytorch import AvgPooling, MaxPooling
 from torch import Tensor
-from torch_geometric.nn import global_max_pool, global_mean_pool
 
 from se3_transformer.model.graph import SE3Graph, DGLGraphWrapper
+
+
+# When I tried using torch geometric's own ops I got errors with torch.compile
+def _segment_reduce(feat: Tensor, batch_num_nodes: Tensor, reduce: str) -> Tensor:
+    """
+    Perform segment-based reduction (sum, mean, max) over nodes grouped by graph.
+    Used for PyTorchGraph backend.
+
+    Args:
+        feat: Node features [total_nodes, ...]
+        batch_num_nodes: Number of nodes per graph [batch_size]
+        reduce: Reduction operation ('sum', 'mean', 'max')
+
+    Returns:
+        Reduced features [batch_size, ...]
+    """
+    batch_size = batch_num_nodes.shape[0]
+    device = feat.device
+
+    # Create segment indices: [0, 0, 0, 1, 1, 1, 1, 2, 2, ...] for nodes belonging to each graph
+    segment_ids = torch.repeat_interleave(
+        torch.arange(batch_size, device=device),
+        batch_num_nodes
+    )
+
+    if reduce == 'sum':
+        # Use scatter_add for sum
+        output_shape = (batch_size,) + feat.shape[1:]
+        output = torch.zeros(output_shape, dtype=feat.dtype, device=device)
+        # Expand segment_ids to match feat dimensions
+        expanded_ids = segment_ids.view(-1, *([1] * (feat.dim() - 1))).expand_as(feat)
+        output.scatter_add_(0, expanded_ids, feat)
+        return output
+
+    elif reduce == 'mean':
+        # Sum then divide by count
+        output_shape = (batch_size,) + feat.shape[1:]
+        output = torch.zeros(output_shape, dtype=feat.dtype, device=device)
+        expanded_ids = segment_ids.view(-1, *([1] * (feat.dim() - 1))).expand_as(feat)
+        output.scatter_add_(0, expanded_ids, feat)
+        # Divide by node counts (broadcast to match feature dimensions)
+        counts = batch_num_nodes.float().view(-1, *([1] * (feat.dim() - 1)))
+        return output / counts
+
+    elif reduce == 'max':
+        # Use scatter_reduce for max (PyTorch 1.12+)
+        output_shape = (batch_size,) + feat.shape[1:]
+        output = torch.full(output_shape, float('-inf'), dtype=feat.dtype, device=device)
+        expanded_ids = segment_ids.view(-1, *([1] * (feat.dim() - 1))).expand_as(feat)
+        output.scatter_reduce_(0, expanded_ids, feat, reduce='amax', include_self=False)
+        return output
+
+    else:
+        raise ValueError(f"Unknown reduce operation: {reduce}")
 
 
 class GPooling(nn.Module):
@@ -59,24 +112,9 @@ class GPooling(nn.Module):
         if isinstance(graph, DGLGraphWrapper):
             pooled = self._dgl_pool(graph._graph, feat)
         else:
-            # PyTorch Geometric pooling for PyTorchGraph
-            # PyG pooling expects [num_nodes, num_features], so flatten extra dims
-            orig_shape = feat.shape
-            feat_flat = feat.flatten()
-
-            # Create batch assignment tensor from batch_num_nodes
+            # PyTorch-native pooling for PyTorchGraph
             batch_num_nodes = graph.batch_num_nodes()
-            batch = torch.repeat_interleave(
-                torch.arange(batch_num_nodes.shape[0], device=feat.device),
-                batch_num_nodes
-            )
-
-            if self.pool_type == 'max':
-                pooled = global_max_pool(feat_flat, batch)
-            else:
-                pooled = global_mean_pool(feat_flat, batch)
-
-            # Restore shape: [batch_size, *orig_shape[1:]]
-            pooled = pooled.view(pooled.shape[0], *orig_shape[1:])
+            reduce = 'max' if self.pool_type == 'max' else 'mean'
+            pooled = _segment_reduce(feat, batch_num_nodes, reduce)
 
         return pooled.squeeze(dim=-1)
