@@ -11,6 +11,7 @@ the specific backends.
 
 from abc import ABC, abstractmethod
 import os
+import logging
 from typing import Tuple
 
 import dgl
@@ -22,6 +23,11 @@ import torch_geometric
 # Set USE_PYTORCH_GRAPH=1 to use PyTorchGraph backend.
 # Default is DGL backend for exact compatibility with original implementation.
 USE_PYTORCH_GRAPH = os.environ.get('USE_PYTORCH_GRAPH', '0') == '1'
+
+if USE_PYTORCH_GRAPH:
+    logging.info("Using PyTorch Native Graph backend for SE3Graph")
+else:
+    logging.info("Using DGL Graph backend for SE3Graph")
 
 
 class SE3Graph(ABC):
