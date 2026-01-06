@@ -135,7 +135,8 @@ if __name__ == '__main__':
             warmup_epochs=1 if args.epochs > 1 else 0,
             mode='inference'
         )]
-        for _ in range(args.epochs):
+        for epoch in range(args.epochs):
+            print(f"Epoch {epoch}")
             evaluate(model,
                      test_dataloader,
                      callbacks,
