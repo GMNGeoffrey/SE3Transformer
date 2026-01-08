@@ -29,8 +29,9 @@ import dgl
 import pytest
 import torch
 
-from se3_transformer.model.graph import DGLGraphWrapper, PyTorchGraph
-from se3_transformer.model.layers.pooling import GPooling
+from se3_transformer.model.graph import DGLGraphWrapper, from_dgl_graph
+from se3_transformer.model.layers.pyg_pooling import PyGPooling
+from se3_transformer.model.layers.dgl_pooling import DGLPooling
 
 
 def _create_batched_graphs(batch_sizes, feat_dim, device='cpu'):
@@ -64,26 +65,17 @@ def _create_batched_graphs(batch_sizes, feat_dim, device='cpu'):
 
     dgl_graph = DGLGraphWrapper(batched_dgl)
 
-    # Create PyTorchGraph with the same structure
-    src, dst = batched_dgl.edges()
-    pyg_graph = PyTorchGraph(
-        src=src,
-        dst=dst,
-        num_nodes=batched_dgl.num_nodes(),
-        batch_num_nodes=batched_dgl.batch_num_nodes(),
-    )
+    pyg_graph = from_dgl_graph(batched_dgl)
     pyg_graph.edata['rel_pos'] = torch.zeros(batched_dgl.num_edges(), 3, device=device)
 
-    # Create random features - same for both graphs
     total_nodes = sum(batch_sizes)
-    # Features shape: [num_nodes, feat_dim, 1] (type-0 features have 1 channel)
     feat = torch.randn(total_nodes, feat_dim, 1, device=device)
     features = {'0': feat}
 
     return dgl_graph, pyg_graph, features
 
 
-class TestPoolingEquivalence:
+class TestPooling:
     """Test that PyG pooling matches DGL pooling."""
 
     @pytest.mark.parametrize("pool_type", ['max', 'avg'])
@@ -105,11 +97,12 @@ class TestPoolingEquivalence:
         )
 
         # Create pooling module
-        pooling = GPooling(feat_type=0, pool=pool_type).to(device)
+        dgl_pooling = DGLPooling(pool=pool_type).to(device)
+        pyg_pooling = PyGPooling(pool=pool_type).to(device)
 
         # Get results from both backends
-        dgl_result = pooling(features, dgl_graph)
-        pyg_result = pooling(features, pyg_graph)
+        dgl_result = dgl_pooling(features['0'], dgl_graph)
+        pyg_result = pyg_pooling(features['0'], pyg_graph)
 
         # Check shapes match and values are close
         torch.testing.assert_close(dgl_result, pyg_result, atol=1e-5, rtol=1e-5)
@@ -127,6 +120,8 @@ class TestPoolingEquivalence:
             batch_sizes, feat_dim, device=device
         )
         graph = dgl_graph if graph_type == "dgl" else pyg_graph
+        pooling = DGLPooling(pool='max') if graph_type == "dgl" else PyGPooling(pool='max')
+        pooling.to(device)
 
         # Create features where we know the max
         # Graph 0: nodes 0,1,2 with values [1,2,3], [4,5,6], [7,8,9], [10,11,12]
@@ -138,11 +133,8 @@ class TestPoolingEquivalence:
             [[100], [300], [500], [700]],  # node 3
             [[200], [400], [600], [800]],  # node 4 (max for graph 1)
         ], dtype=torch.float32, device=device)
-        features = {'0': feat}
 
-        pooling = GPooling(feat_type=0, pool='max').to(device)
-
-        result = pooling(features, graph)
+        result = pooling(feat, graph)
 
         # Expected: max of each graph
         expected = torch.tensor([
@@ -165,6 +157,8 @@ class TestPoolingEquivalence:
             batch_sizes, feat_dim, device=device
         )
         graph = dgl_graph if graph_type == "dgl" else pyg_graph
+        pooling = DGLPooling(pool='avg') if graph_type == "dgl" else PyGPooling(pool='avg')
+        pooling.to(device)
 
         # Create features where we know the mean
         # Graph 0: nodes 0,1 -> mean should be (node0 + node1) / 2
@@ -176,11 +170,8 @@ class TestPoolingEquivalence:
             [[6], [12]],   # node 3: [6, 12]
             [[9], [18]],   # node 4: [9, 18] -> graph 1 mean: [6, 12]
         ], dtype=torch.float32, device=device)
-        features = {'0': feat}
 
-        pooling = GPooling(feat_type=0, pool='avg').to(device)
-
-        result = pooling(features, graph)
+        result = pooling(feat, graph)
 
         expected = torch.tensor([
             [3, 6],   # mean of graph 0

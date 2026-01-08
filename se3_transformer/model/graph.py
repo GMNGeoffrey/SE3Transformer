@@ -1,5 +1,5 @@
 """
-SE3Graph: A graph abstraction for SE3Transformer that supports both DGL and PyTorch backends.
+SE3Graph: A graph abstraction for SE3Transformer that supports both DGL and PyTorch Geometric backends.
 
 This module provides a unified graph interface that can use either:
 1. DGL graphs (default, for exact compatibility with original implementation)
@@ -12,29 +12,34 @@ the specific backends.
 from abc import ABC, abstractmethod
 import os
 import logging
-from typing import Tuple
 
-import dgl
 import torch
 from torch import Tensor
-import torch_geometric
 
-# Global setting for graph backend, read once at import time.
-# Set USE_PYTORCH_GRAPH=1 to use PyTorchGraph backend.
-# Default is DGL backend for exact compatibility with original implementation.
-USE_PYTORCH_GRAPH = os.environ.get('USE_PYTORCH_GRAPH', '0') == '1'
+USE_PYG_ENV_VAR = "SE3_USE_PYG"
+SE3_USE_PYG = os.environ.get(USE_PYG_ENV_VAR, "0") == "1"
 
-if USE_PYTORCH_GRAPH:
-    logging.info("Using PyTorch Native Graph backend for SE3Graph")
+if SE3_USE_PYG:
+    logging.info("Using PyTorch Geometric backend for SE3Graph")
+    import torch_geometric
 else:
     logging.info("Using DGL Graph backend for SE3Graph")
 
+try:
+    import dgl
+except ImportError:
+    if SE3_USE_PYG:
+        logging.warning("DGL not found. It is not required with the PyTorch Geometric backend, but translation from DGL graphs or use of DGL datasets will fail.")
+    else:
+        raise ImportError(f"DGL not found. Install it or set {USE_PYG_ENV_VAR}=1 to use the PyTorch Geometric backend.")
 
 class SE3Graph(ABC):
     """
     Abstract base class for SE3Transformer graph representations.
 
-    This class defines the interface that both DGL and PyTorch backends implement.
+    This class defines the interface that both DGL and PyTorch Geometric backends
+    implement. It is the minimal set of operations that SE3Transformer uses.
+
     The interface includes:
     - edges() -> (src, dst) tensors
     - num_nodes() -> int
@@ -46,7 +51,7 @@ class SE3Graph(ABC):
     """
 
     @abstractmethod
-    def edges(self) -> Tuple[Tensor, Tensor]:
+    def edges(self) -> tuple[Tensor, Tensor]:
         """Return (src, dst) tensors for all edges."""
         pass
 
@@ -121,13 +126,13 @@ class DGLGraphWrapper(SE3Graph):
     which are highly optimized but cause graph breaks in torch.compile.
     """
 
-    def __init__(self, dgl_graph: dgl.DGLGraph):
+    def __init__(self, dgl_graph):
         """
         Wrap an existing DGL graph.
         """
         self._graph = dgl_graph
 
-    def edges(self) -> Tuple[Tensor, Tensor]:
+    def edges(self) -> tuple[Tensor, Tensor]:
         """Return (src, dst) tensors for all edges."""
         return self._graph.edges()
 
@@ -200,7 +205,7 @@ class PyTorchGraph(SE3Graph):
         else:
             self._batch_num_nodes = batch_num_nodes
 
-    def edges(self) -> Tuple[Tensor, Tensor]:
+    def edges(self) -> tuple[Tensor, Tensor]:
         """Return (src, dst) tensors for all edges."""
         return self._src, self._dst
 
@@ -260,7 +265,7 @@ def create_graph(
     Returns:
         SE3Graph instance (either DGLGraphWrapper or PyTorchGraph)
     """
-    if USE_PYTORCH_GRAPH:
+    if SE3_USE_PYG:
         return PyTorchGraph(src, dst, num_nodes)
     else:
         # Create DGL graph and wrap it
@@ -271,11 +276,11 @@ def create_graph(
         return DGLGraphWrapper(dgl_graph)
 
 
-def from_dgl_graph(dgl_graph: dgl.DGLGraph) -> SE3Graph:
+def from_dgl_graph(dgl_graph) -> SE3Graph:
     """
     Construct an SE3Graph from an existing DGL graph.
 
-    Depending on the value of USE_PYTORCH_GRAPH, this will either convert the
+    Depending on the value of SE3_USE_PYG, this will either convert the
     DGL graph to a PyTorchGraph or wrap it in a DGLGraphWrapper. This is useful
     for wrapping graphs returned by dgl.batch() or other DGL operations.
 
@@ -285,7 +290,7 @@ def from_dgl_graph(dgl_graph: dgl.DGLGraph) -> SE3Graph:
     Returns:
         SE3Graph wrapping the graph (either DGLGraphWrapper or PyTorchGraph)
     """
-    if USE_PYTORCH_GRAPH:
+    if SE3_USE_PYG:
         src, dst = dgl_graph.edges()
         g = PyTorchGraph(
             src=src,

@@ -21,37 +21,22 @@
 # SPDX-FileCopyrightText: Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES
 # SPDX-License-Identifier: MIT
 
-from typing import Dict, Literal
+from typing import Literal
 
+from dgl.nn.pytorch import MaxPooling, AvgPooling
 import torch.nn as nn
 from torch import Tensor
 
-from se3_transformer.model.graph import SE3Graph, SE3_USE_PYG
+from se3_transformer.model.graph import SE3Graph
 
-if SE3_USE_PYG:
-    from se3_transformer.model.layers.pyg_pooling import PyGPooling as Pooling
-else:
-    from se3_transformer.model.layers.dgl_pooling import DGLPooling as Pooling
-
-
-class GPooling(nn.Module):
+class DGLPooling(nn.Module):
     """
-    Graph max/average pooling on a given feature type.
-    The average can be taken for any feature type, and equivariance will be maintained.
-    The maximum can only be taken for invariant features (type 0).
-    If you want max-pooling for type > 0 features, look into Vector Neurons.
+    Module wrapper for DGL pooling.
     """
 
-    def __init__(self, feat_type: int = 0, pool: Literal['max', 'avg'] = 'max'):
-        """
-        :param feat_type: Feature type to pool
-        :param pool: Type of pooling: max or avg
-        """
+    def __init__(self, pool: Literal['max', 'avg'] = 'max'):
         super().__init__()
-        assert pool in ['max', 'avg'], f'Unknown pooling: {pool}'
-        assert feat_type == 0 or pool == 'avg', 'Max pooling on type > 0 features will break equivariance'
-        self.feat_type = feat_type
-        self.pool = Pooling(pool)
+        self.pooler = MaxPooling() if pool == 'max' else AvgPooling()
 
-    def forward(self, features: Dict[str, Tensor], graph: SE3Graph) -> Tensor:
-        return self.pool(features[str(self.feat_type)], graph)
+    def forward(self, feat: Tensor, graph: SE3Graph) -> Tensor:
+        return self.pooler(graph._graph, feat).squeeze(dim=-1)

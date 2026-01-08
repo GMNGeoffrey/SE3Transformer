@@ -21,37 +21,37 @@
 # SPDX-FileCopyrightText: Copyright (c) 2021-2022 NVIDIA CORPORATION & AFFILIATES
 # SPDX-License-Identifier: MIT
 
-from typing import Dict, Literal
+from typing import Literal
 
+import torch
 import torch.nn as nn
 from torch import Tensor
+from torch_geometric.nn import global_max_pool, global_mean_pool
 
-from se3_transformer.model.graph import SE3Graph, SE3_USE_PYG
+from se3_transformer.model.graph import SE3Graph
 
-if SE3_USE_PYG:
-    from se3_transformer.model.layers.pyg_pooling import PyGPooling as Pooling
-else:
-    from se3_transformer.model.layers.dgl_pooling import DGLPooling as Pooling
-
-
-class GPooling(nn.Module):
+class PyGPooling(nn.Module):
     """
-    Graph max/average pooling on a given feature type.
-    The average can be taken for any feature type, and equivariance will be maintained.
-    The maximum can only be taken for invariant features (type 0).
-    If you want max-pooling for type > 0 features, look into Vector Neurons.
+    Module wrapper for PyTorch Geometric global pooling functions to match DGL pooling interface.
     """
+    # TODO: Pretty sure there's already nn module versions of these in PyG. Use those instead.
 
-    def __init__(self, feat_type: int = 0, pool: Literal['max', 'avg'] = 'max'):
-        """
-        :param feat_type: Feature type to pool
-        :param pool: Type of pooling: max or avg
-        """
+    def __init__(self, pool: Literal['max', 'avg'] = 'max'):
         super().__init__()
-        assert pool in ['max', 'avg'], f'Unknown pooling: {pool}'
-        assert feat_type == 0 or pool == 'avg', 'Max pooling on type > 0 features will break equivariance'
-        self.feat_type = feat_type
-        self.pool = Pooling(pool)
+        self.pooler = global_max_pool if pool == 'max' else global_mean_pool
 
-    def forward(self, features: Dict[str, Tensor], graph: SE3Graph) -> Tensor:
-        return self.pool(features[str(self.feat_type)], graph)
+    def forward(self, feat: Tensor, graph: SE3Graph) -> Tensor:
+            # PyG pooling expects [num_nodes, num_features], so flatten extra dims
+            orig_shape = feat.shape
+            feat_flat = feat.flatten(start_dim=1)
+
+            # Create batch assignment tensor from batch_num_nodes
+            batch_num_nodes = graph.batch_num_nodes()
+            batch = torch.repeat_interleave(
+                torch.arange(batch_num_nodes.shape[0], device=feat.device),
+                batch_num_nodes
+            )
+
+            pooled = self.pooler(feat_flat, batch, batch_num_nodes.shape[0])
+
+            return pooled.view(pooled.shape[0], *orig_shape[1:]).squeeze(dim=-1)
