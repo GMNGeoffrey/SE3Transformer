@@ -26,7 +26,9 @@ from typing import Literal
 import torch
 import torch.nn as nn
 from torch import Tensor
-from torch_geometric.nn import global_max_pool, global_mean_pool
+from torch_geometric.nn.aggr import MaxAggregation, MeanAggregation
+from torch_geometric.utils import cumsum
+
 
 from se3_transformer.model.graph import SE3Graph
 
@@ -34,24 +36,22 @@ class PyGPooling(nn.Module):
     """
     Module wrapper for PyTorch Geometric global pooling functions to match DGL pooling interface.
     """
-    # TODO: Pretty sure there's already nn module versions of these in PyG. Use those instead.
 
     def __init__(self, pool: Literal['max', 'avg'] = 'max'):
         super().__init__()
-        self.pooler = global_max_pool if pool == 'max' else global_mean_pool
+        self.pooler = MaxAggregation() if pool == 'max' else MeanAggregation()
+
 
     def forward(self, feat: Tensor, graph: SE3Graph) -> Tensor:
-            # PyG pooling expects [num_nodes, num_features], so flatten extra dims
-            orig_shape = feat.shape
-            feat_flat = feat.flatten(start_dim=1)
+        batch_num_nodes = graph.batch_num_nodes().to(feat.device)
+        # PyG cumsum includes the leading zero we need here.
+        batch_ptr = cumsum(batch_num_nodes)
 
-            # Create batch assignment tensor from batch_num_nodes
-            batch_num_nodes = graph.batch_num_nodes()
-            batch = torch.repeat_interleave(
-                torch.arange(batch_num_nodes.shape[0], device=feat.device),
-                batch_num_nodes
-            )
+        pooled = self.pooler(
+            feat,
+            ptr=batch_ptr,
+            dim_size=batch_num_nodes.shape[0],
+            dim=0,
+        )
 
-            pooled = self.pooler(feat_flat, batch, batch_num_nodes.shape[0])
-
-            return pooled.view(pooled.shape[0], *orig_shape[1:]).squeeze(dim=-1)
+        return pooled.squeeze(dim=-1)
