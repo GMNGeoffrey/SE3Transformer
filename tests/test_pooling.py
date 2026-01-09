@@ -29,7 +29,8 @@ import dgl
 import pytest
 import torch
 
-from se3_transformer.model.graph import DGLGraphWrapper, from_dgl_graph
+from se3_transformer.model.pyg_graph import PyGGraph
+from se3_transformer.model.dgl_graph_wrapper import DGLGraphWrapper
 from se3_transformer.model.layers.pyg_pooling import PyGPooling
 from se3_transformer.model.layers.dgl_pooling import DGLPooling
 
@@ -45,7 +46,7 @@ def _create_batched_graphs(batch_sizes, feat_dim, device='cpu'):
 
     Returns:
         dgl_graph: DGLGraphWrapper with batched graph
-        pyg_graph: PyTorchGraph with same structure
+        pyg_graph: PyGGraph with same structure
         features: Dict with '0' key containing node features
     """
     # Create individual DGL graphs and batch them
@@ -65,7 +66,14 @@ def _create_batched_graphs(batch_sizes, feat_dim, device='cpu'):
 
     dgl_graph = DGLGraphWrapper(batched_dgl)
 
-    pyg_graph = from_dgl_graph(batched_dgl)
+    src, dst = dgl_graph.edges()
+    pyg_graph = PyGGraph(
+        src=src,
+        dst=dst,
+        num_nodes=dgl_graph.num_nodes(),
+        batch_num_nodes=dgl_graph.batch_num_nodes(),
+    )
+    pyg_graph._edata = {k: v for k, v in dgl_graph.edata.items()}
     pyg_graph.edata['rel_pos'] = torch.zeros(batched_dgl.num_edges(), 3, device=device)
 
     total_nodes = sum(batch_sizes)

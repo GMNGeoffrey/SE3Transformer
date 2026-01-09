@@ -23,14 +23,12 @@
 
 from typing import Literal
 
-import torch
 import torch.nn as nn
 from torch import Tensor
 from torch_geometric.nn.aggr import MaxAggregation, MeanAggregation
-from torch_geometric.utils import cumsum
 
 
-from se3_transformer.model.graph import SE3Graph
+from se3_transformer.model.pyg_graph import PyGGraph
 
 class PyGPooling(nn.Module):
     """
@@ -42,15 +40,11 @@ class PyGPooling(nn.Module):
         self.pooler = MaxAggregation() if pool == 'max' else MeanAggregation()
 
 
-    def forward(self, feat: Tensor, graph: SE3Graph) -> Tensor:
-        batch_num_nodes = graph.batch_num_nodes().to(feat.device)
-        # PyG cumsum includes the leading zero we need here.
-        batch_ptr = cumsum(batch_num_nodes)
-
+    def forward(self, feat: Tensor, graph: PyGGraph) -> Tensor:
         pooled = self.pooler(
             feat,
-            ptr=batch_ptr,
-            dim_size=batch_num_nodes.shape[0],
+            ptr=graph.batch_ptr.to(feat.device),
+            dim_size=graph.batch_num_nodes().shape[0],
             dim=0,
         )
 

@@ -27,7 +27,7 @@ from dgl.nn.pytorch import MaxPooling, AvgPooling
 import torch.nn as nn
 from torch import Tensor
 
-from se3_transformer.model.graph import SE3Graph
+from se3_transformer.model.dgl_graph_wrapper import DGLGraphWrapper
 
 class DGLPooling(nn.Module):
     """
@@ -38,5 +38,5 @@ class DGLPooling(nn.Module):
         super().__init__()
         self.pooler = MaxPooling() if pool == 'max' else AvgPooling()
 
-    def forward(self, feat: Tensor, graph: SE3Graph) -> Tensor:
+    def forward(self, feat: Tensor, graph: DGLGraphWrapper) -> Tensor:
         return self.pooler(graph._graph, feat).squeeze(dim=-1)
