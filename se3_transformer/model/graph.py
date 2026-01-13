@@ -18,7 +18,7 @@ from torch import Tensor
 from se3_transformer.model.se3_graph import SE3Graph
 
 USE_PYG_ENV_VAR = "SE3_USE_PYG"
-SE3_USE_PYG = os.environ.get(USE_PYG_ENV_VAR, "0") == "1"
+SE3_USE_PYG = os.environ.get(USE_PYG_ENV_VAR, "1") == "1"
 
 if SE3_USE_PYG:
     logging.info("Using PyTorch Geometric backend for SE3Graph")
