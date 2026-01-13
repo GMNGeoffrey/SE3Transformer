@@ -49,10 +49,15 @@ class Sequential(nn.Sequential):
 
 def get_populated_edge_features(relative_pos: Tensor, edge_features: Optional[Dict[str, Tensor]] = None):
     """ Add relative positions to existing edge features """
-    edge_features = edge_features.copy() if edge_features else {}
+    if edge_features is None:
+        edge_features = {}
+    edge_features = edge_features.copy()
     r = relative_pos.norm(dim=-1, keepdim=True)
     if '0' in edge_features:
-        edge_features['0'] = torch.cat([edge_features['0'], r[..., None]], dim=1)
+        # The compiler somehow gets confused and thinks these are on different
+        # devices. Explicitly moving them to the current device (which both
+        # should already be on anyways) fixes this.
+        edge_features['0'] = torch.cat([edge_features['0'].to(torch.cuda.current_device()), r[..., None].to(torch.cuda.current_device())], dim=1)
     else:
         edge_features['0'] = r[..., None]
 
