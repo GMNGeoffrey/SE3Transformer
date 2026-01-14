@@ -126,6 +126,9 @@ def train(model: nn.Module,
         model = DistributedDataParallel(model, device_ids=[local_rank], output_device=local_rank)
         model._set_static_graph()
 
+    if args.compile:
+        model.compile()
+
     model.train()
     grad_scaler = torch.amp.GradScaler("cuda", enabled=args.amp)
     if args.optimizer == 'adam':
@@ -217,13 +220,13 @@ if __name__ == '__main__':
         tensor_cores=using_tensor_cores(args.amp),  # use Tensor Cores more effectively
         **vars(args)
     )
-    if args.compile:
-        model.compile()
+
     loss_fn = nn.L1Loss()
+
+    world_size = dist.get_world_size() if dist.is_initialized() else 1
 
     if args.benchmark:
         logging.info('Running benchmark mode')
-        world_size = dist.get_world_size() if dist.is_initialized() else 1
         callbacks = [PerformanceCallback(
             logger,
             batch_size=args.batch_size * world_size,
@@ -240,7 +243,9 @@ if __name__ == '__main__':
 
     torch.set_float32_matmul_precision('high')
     print_parameters_count(model)
-    logger.log_hyperparams(vars(args))
+    params = vars(args)
+    params["world_size"] = world_size
+    logger.log_hyperparams(params)
     if(check_gpu_availibility() == "cuda"):
         increase_l2_fetch_granularity()
     train(model,
