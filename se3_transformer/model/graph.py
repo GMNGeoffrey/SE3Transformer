@@ -25,15 +25,13 @@ if SE3_USE_PYG:
     from se3_transformer.model.pyg_graph import PyGGraph
 else:
     logging.info("Using DGL Graph backend for SE3Graph")
-    import dgl
-    from se3_transformer.model.dgl_graph_wrapper import DGLGraphWrapper
+    from se3_transformer.model.dgl_graph_wrapper import DGLGraphWrapper, create_wrapped_dgl_graph
 
 
 def create_graph(
     src: Tensor,
     dst: Tensor,
     num_nodes: int,
-    device: torch.device = None,
 ) -> SE3Graph:
     """
     Factory function to create an SE3Graph using either DGL or PyTorch backend.
@@ -42,7 +40,6 @@ def create_graph(
         src: Source node indices for each edge
         dst: Destination node indices for each edge
         num_nodes: Total number of nodes
-        device: Device for the graph (only used for DGL backend)
 
     Returns:
         SE3Graph instance (either DGLGraphWrapper or PyGGraph)
@@ -50,11 +47,7 @@ def create_graph(
     if SE3_USE_PYG:
         return PyGGraph(src, dst, num_nodes)
     else:
-        if device is None:
-            device = src.device
-        # Checking the node count is a big performance hit
-        dgl_graph = dgl.graph((src, dst), num_nodes=num_nodes, node_count_check=False, device=device)
-        return DGLGraphWrapper(dgl_graph)
+        return create_wrapped_dgl_graph(src, dst, num_nodes)
 
 
 def from_dgl_graph(dgl_graph) -> SE3Graph:
@@ -69,7 +62,7 @@ def from_dgl_graph(dgl_graph) -> SE3Graph:
         dgl_graph: A DGL graph (possibly batched)
 
     Returns:
-        SE3Graph wrapping the graph (either DGLGraphWrapper or PyGGraph)
+        SE3Graph (either DGLGraphWrapper or PyGGraph)
     """
     if SE3_USE_PYG:
         src, dst = dgl_graph.edges()

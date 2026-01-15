@@ -1,7 +1,7 @@
 import dgl
 from torch import Tensor
 
-from se3_transformer.model.graph import SE3Graph
+from se3_transformer.model.se3_graph import SE3Graph
 
 
 class DGLGraphWrapper(SE3Graph):
@@ -10,7 +10,7 @@ class DGLGraphWrapper(SE3Graph):
 
     This is the default backend that provides exact compatibility with the
     original SE3Transformer implementation. It uses DGL's graph operations
-    which are highly optimized but cause graph breaks in torch.compile.
+    which are highly optimized but have poor compatibility with torch.compile.
     """
 
     def __init__(self, dgl_graph):
@@ -33,7 +33,7 @@ class DGLGraphWrapper(SE3Graph):
 
     def to(self, device, **kwargs) -> 'DGLGraphWrapper':
         """Move the graph to the specified device."""
-        return DGLGraphWrapper(self._graph.to(device))
+        return DGLGraphWrapper(self._graph.to(device, **kwargs))
 
     @property
     def edata(self):
@@ -51,3 +51,23 @@ class DGLGraphWrapper(SE3Graph):
     def edge_softmax(self, edge_weights: Tensor) -> Tensor:
         """Edge softmax using DGL ops."""
         return dgl.ops.edge_softmax(self._graph, edge_weights)
+
+
+def create_wrapped_dgl_graph(
+    src: Tensor,
+    dst: Tensor,
+    num_nodes: int,
+) -> DGLGraphWrapper:
+    """
+    Factory function to create a DGLGraphWrapper.
+
+    Args:
+        src: Source node indices for each edge
+        dst: Destination node indices for each edge
+        num_nodes: Total number of nodes
+
+    Returns:
+        DGLGraphWrapper instance
+    """
+    dgl_graph = dgl.graph((src, dst), num_nodes=num_nodes)
+    return DGLGraphWrapper(dgl_graph)

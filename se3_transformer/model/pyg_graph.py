@@ -2,16 +2,14 @@ import torch
 from torch import Tensor
 import torch_geometric
 
-from se3_transformer.model.graph import SE3Graph
+from se3_transformer.model.se3_graph import SE3Graph
 
 
 class PyGGraph(SE3Graph):
     """
-    SE3Graph implementation using pure PyTorch tensors with PyG operations.
+    SE3Graph implementation using pure PyTorch tensors with PyTorch Geometric operations.
 
-    This backend has better compatibility with torch.compile because it avoids
-    DGL's dlpack-based tensor conversion which torch.compile can't reason about.
-    It uses PyTorch Geometric's scatter and softmax operations.
+    This backend offers better compatibility with torch.compile.
     """
 
     def __init__(
