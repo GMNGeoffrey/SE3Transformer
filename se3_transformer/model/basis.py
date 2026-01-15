@@ -43,6 +43,7 @@ def get_clebsch_gordon(J: int, d_in: int, d_out: int, device) -> Tensor:
     return o3.wigner_3j(J, d_in, d_out, dtype=torch.float64, device=device).permute(2, 1, 0)
 
 
+@torch.compiler.disable(reason="torch compile errors in so3_clebsch_gordan and e3nn has disables within here already")
 @lru_cache(maxsize=None)
 def get_all_clebsch_gordon(max_degree: int, device) -> List[List[Tensor]]:
     all_cb = []
